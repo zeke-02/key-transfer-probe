@@ -1,0 +1,45 @@
+# Throwaway probe for Fount Mail's vault design. Holds no real secret: the only
+# key is random, made on request, and worthless. See README.md.
+cvm-version: 0.14.17
+cpus: 2
+memory: 8192
+
+attested-keys:
+  - id: transfer
+    key: x25519
+
+networks:
+  # Enclaves reach each other through their public domains, and those domains
+  # aren't known until instances exist, so an allowlist can't name them.
+  peers:
+    egress: open
+
+containers:
+  - name: probe
+    image: "ghcr.io/zeke-02/key-transfer-probe@sha256:PLACEHOLDER_DIGEST" # from Build Image
+    networks: [peers]
+    keys: [transfer]
+    attestation: true
+    restart: always
+    healthcheck:
+      test: ["CMD", "/probe", "health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 1m
+    ports: ["8080:8080"]
+    env:
+      - PEER_PIN: "zeke-02/key-transfer-probe@v0.0.1"
+      - PROBE_LABEL: "approved" # change for the unapproved release, so its measurement differs
+
+shim:
+  upstream-port: 8080
+  paths:
+    - /health
+    - /status
+    - /prove
+    - /attest
+    - /generate
+    - /pull
+    - /transfer/begin
+    - /transfer/finish
