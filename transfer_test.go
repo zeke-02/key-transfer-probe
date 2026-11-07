@@ -19,8 +19,12 @@ import (
 )
 
 // fakeAuthority stands in for hardware: a document is the nonce plus the name of
-// the enclave that made it, and only enrolled names verify.
-type fakeAuthority struct{ enrolled map[string]*ecdh.PublicKey }
+// the enclave that made it, and only enrolled names verify. Names without a tag
+// run v1.0.0.
+type fakeAuthority struct {
+	enrolled map[string]*ecdh.PublicKey
+	tags     map[string]string
+}
 
 type fakeAttester struct{ name string }
 
@@ -37,7 +41,11 @@ func (a *fakeAuthority) Verify(doc, nonce []byte) (*peerIdentity, error) {
 	if !ok {
 		return nil, errors.New("not the pinned release")
 	}
-	return &peerIdentity{Key: key, KeyFingerprint: fingerprint(key)}, nil
+	tag, ok := a.tags[name]
+	if !ok {
+		tag = "v1.0.0"
+	}
+	return &peerIdentity{Key: key, KeyFingerprint: fingerprint(key), CodeTag: tag}, nil
 }
 
 func newTransferKey(t *testing.T) *ecdh.PrivateKey {
@@ -68,7 +76,7 @@ func startEnclave(t *testing.T, name string, a *fakeAuthority, enroll bool) *enc
 
 func newPair(t *testing.T) (*fakeAuthority, *enclave, *enclave) {
 	t.Helper()
-	a := &fakeAuthority{enrolled: map[string]*ecdh.PublicKey{}}
+	a := &fakeAuthority{enrolled: map[string]*ecdh.PublicKey{}, tags: map[string]string{}}
 	return a, startEnclave(t, "vault", a, true), startEnclave(t, "edge", a, true)
 }
 
@@ -192,7 +200,10 @@ func TestPullerRefusesUnapprovedHolder(t *testing.T) {
 	other := startEnclave(t, "other-repo", a, false)
 	other.generate(t)
 	// A hostile holder hands its key to anyone, so only vault's check stops this.
-	other.s.verifier = &fakeAuthority{enrolled: map[string]*ecdh.PublicKey{"vault": vault.s.transfer.PublicKey()}}
+	other.s.verifier = &fakeAuthority{enrolled: map[string]*ecdh.PublicKey{
+		"vault":      vault.s.transfer.PublicKey(),
+		"other-repo": other.s.transfer.PublicKey(),
+	}}
 
 	_, err := vault.s.pull(context.Background(), other.url)
 	if err == nil || !strings.Contains(err.Error(), "verifying holder") {
@@ -200,6 +211,59 @@ func TestPullerRefusesUnapprovedHolder(t *testing.T) {
 	}
 	if _, status := vault.proof(t, "hello"); status != http.StatusConflict {
 		t.Fatalf("vault installed the key, prove answered %d", status)
+	}
+}
+
+func TestOlderReleaseGetsNothing(t *testing.T) {
+	a, vault, _ := newPair(t)
+	a.tags["vault"] = "v1.2.0"
+	vault.generate(t)
+	old := startEnclave(t, "old-vault", a, true)
+	a.tags["old-vault"] = "v1.1.9"
+
+	_, err := old.s.pull(context.Background(), vault.url)
+	if err == nil || !strings.Contains(err.Error(), "minimum tag") {
+		t.Fatalf("expected the older release to be refused, got %v", err)
+	}
+	if _, status := old.proof(t, "hello"); status != http.StatusConflict {
+		t.Fatalf("older release ended up with a key, prove answered %d", status)
+	}
+}
+
+func TestUpgradePullsFromOlderRelease(t *testing.T) {
+	a, vault, _ := newPair(t)
+	vault.generate(t)
+	next := startEnclave(t, "next-vault", a, true)
+	a.tags["next-vault"] = "v1.10.0"
+
+	if _, err := next.s.pull(context.Background(), vault.url); err != nil {
+		t.Fatalf("upgrade pull: %v", err)
+	}
+	// The new release then serves its own peers at or above v1.10.0 only.
+	stale := startEnclave(t, "stale", a, true)
+	if _, err := stale.s.pull(context.Background(), next.url); err == nil {
+		t.Fatal("v1.0.0 pulled from v1.10.0")
+	}
+}
+
+func TestUntaggedReleaseGetsNothing(t *testing.T) {
+	a, vault, edge := newPair(t)
+	vault.generate(t)
+	a.tags["edge"] = ""
+
+	if _, err := edge.s.pull(context.Background(), vault.url); err == nil {
+		t.Fatal("a peer with no release tag got the key")
+	}
+}
+
+func TestHolderWithoutTagRefusesEveryone(t *testing.T) {
+	a, vault, edge := newPair(t)
+	a.tags["vault"] = "latest"
+	vault.generate(t)
+
+	_, err := edge.s.pull(context.Background(), vault.url)
+	if err == nil || !strings.Contains(err.Error(), "own release tag") {
+		t.Fatalf("expected the holder to fail closed, got %v", err)
 	}
 }
 

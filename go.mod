@@ -2,7 +2,10 @@ module github.com/zeke-02/key-transfer-probe
 
 go 1.27.3
 
-require github.com/tinfoilsh/tinfoil-go v0.17.0-rc.8
+require (
+	github.com/tinfoilsh/tinfoil-go v0.17.0-rc.8
+	golang.org/x/mod v0.41.0
+)
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.2 // indirect
@@ -74,7 +77,6 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/crypto v0.57.0 // indirect
-	golang.org/x/mod v0.41.0 // indirect
 	golang.org/x/net v0.60.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect

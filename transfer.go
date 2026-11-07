@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/tinfoilsh/tinfoil-go/verify/document"
+	"golang.org/x/mod/semver"
 )
 
 const (
@@ -50,6 +51,7 @@ type server struct {
 	nonces   map[string]time.Time
 	refusals []refusal
 	lastPeer *peerIdentity
+	floor    string
 }
 
 func newServer(transfer *ecdh.PrivateKey, a attester, v verifier, client *http.Client) *server {
@@ -86,6 +88,7 @@ func (s *server) handleStatus(w http.ResponseWriter, _ *http.Request) {
 		"has_key":         s.key != nil,
 		"transfer_key_fp": fingerprint(s.transfer.PublicKey()),
 		"last_peer":       s.lastPeer,
+		"release_floor":   s.floor,
 		"refusals":        s.refusals,
 	})
 }
@@ -212,6 +215,10 @@ func (s *server) handleFinish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.recordPeer(peer)
+	if err := s.checkFloor(r.Context(), peer); err != nil {
+		s.refuse(w, "minimum tag", err)
+		return
+	}
 
 	s.mu.Lock()
 	key := s.key
@@ -355,6 +362,52 @@ func (s *server) postJSON(ctx context.Context, url string, in, out any) error {
 		return fmt.Errorf("peer answered %d: %.400s", resp.StatusCode, raw)
 	}
 	return json.Unmarshal(raw, out)
+}
+
+// checkFloor keeps keys away from releases older than this one, which the pin
+// alone allows. Only the holder checks: an upgrade pulls from an older release.
+func (s *server) checkFloor(ctx context.Context, peer *peerIdentity) error {
+	floor, err := s.releaseFloor(ctx)
+	if err != nil {
+		return err
+	}
+	if !semver.IsValid(peer.CodeTag) {
+		return fmt.Errorf("peer release tag %q isn't a version", peer.CodeTag)
+	}
+	if semver.Compare(peer.CodeTag, floor) < 0 {
+		return fmt.Errorf("peer release %s is older than this enclave's %s", peer.CodeTag, floor)
+	}
+	return nil
+}
+
+// releaseFloor reads this enclave's tag from its own attestation, so the floor
+// is whatever was measured and can't be misconfigured.
+func (s *server) releaseFloor(ctx context.Context) (string, error) {
+	s.mu.Lock()
+	floor := s.floor
+	s.mu.Unlock()
+	if floor != "" {
+		return floor, nil
+	}
+	nonce, err := document.RandomNonce()
+	if err != nil {
+		return "", err
+	}
+	doc, err := s.attester.Attest(ctx, nonce)
+	if err != nil {
+		return "", fmt.Errorf("attesting to self: %w", err)
+	}
+	self, err := s.verifier.Verify(doc, nonce)
+	if err != nil {
+		return "", fmt.Errorf("verifying self: %w", err)
+	}
+	if !semver.IsValid(self.CodeTag) {
+		return "", fmt.Errorf("own release tag %q isn't a version", self.CodeTag)
+	}
+	s.mu.Lock()
+	s.floor = self.CodeTag
+	s.mu.Unlock()
+	return self.CodeTag, nil
 }
 
 // consumeNonce makes each challenge single-use, so a document for it can't be

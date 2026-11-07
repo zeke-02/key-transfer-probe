@@ -4,7 +4,7 @@
 #
 #   ./check.sh transfer <a> <b>   a generates, b pulls, proofs must match
 #   ./check.sh replay <a> <b>     a must refuse replayed and mismatched documents
-#   ./check.sh refuse <a> <c>     c isn't the pinned release, so a must refuse it
+#   ./check.sh refuse <a> <c>     c isn't the pinned release, or is older, so a must refuse it
 #   ./check.sh restore <a> <b>    after redeploying a: a is empty, then pulls from b
 set -euo pipefail
 
@@ -74,9 +74,11 @@ case "${1:-}" in
     a=$2 c=$3
     status=$(post "$c" /pull "{\"peer\":\"$a\"}")
     [ "$status" != 200 ] || fail "$c was given the key"
-    body | grep -q 'refused at verify' || fail "failed for another reason ($status): $(body)"
+    body | grep -Eq 'refused at (verify|minimum tag)' || fail "failed for another reason ($status): $(body)"
     [ "$(get "$c" "/prove?challenge=x" | jq -r '.proof // empty')" = "" ] || fail "$c can prove the key"
     pass "$c refused: $(body | jq -r .error)"
+    # Which side refused matters: the holder must refuse, not rely on c's own pin.
+    echo "$a's latest refusal: $(get "$a" /status | jq -c '.refusals[-1] // "none"')"
     ;;
   restore)
     a=$2 b=$3
