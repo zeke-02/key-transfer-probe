@@ -112,11 +112,25 @@ All checks passed on 2026-11-07, on CVM 0.14.17 on `iridium-1`. A transfer took 
 time. The copy had the same measurement as `v0.0.1`, and was refused on the signing
 certificate's repo.
 
+## Upgrade test
+
+`v0.0.3` and `v0.0.4` pin the repo without a tag, because an old enclave can't name a release
+that doesn't exist yet. On 2026-11-07:
+
+1. `kt-a` and `kt-b` moved to `v0.0.3`, and `kt-b` pulled a new key from `kt-a`.
+2. `tinfoil container update kt-a --tag v0.0.4 --hold=true` started a candidate at
+   `https://kt-a...:4443`, which pulled the key from the old version still serving production.
+3. After `tinfoil container promote kt-a`, production kept the key in memory.
+4. `kt-b` upgraded the same way, pulling from the new `kt-a`. Both proofs matched.
+
+The repo pin also let `kt-a` seal the key to `kt-unapproved` on `v0.0.2`. That enclave only
+refused it because its own pin was stricter. A real vault should also require a tag at or above
+its own.
+
 ## What this doesn't cover
 
-- Blue/green handoff, or a peer under another domain (stage 2).
 - Handing over after witnesses have aged.
 - Losing both enclaves, or recovery shares.
-- The enforced delay, or a trusted clock.
-- Whether a separate deployment of the pinned release is safe. The pin names a release, not an
-  instance, so a second instance of `v0.0.1` would be accepted.
+- A minimum-tag check against old releases.
+- Whether a second instance of an approved release is safe. The pin names a release, not an
+  instance.

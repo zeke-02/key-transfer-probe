@@ -16,7 +16,7 @@ networks:
 
 containers:
   - name: probe
-    image: "ghcr.io/zeke-02/key-transfer-probe@sha256:803046f620d0e63deb68b65d1b153bafea987d9b5bda079ef9ef993195cfa8b5" # from Build Image
+    image: "ghcr.io/zeke-02/key-transfer-probe@sha256:bab0f9f59fbfcf09506a2baf1574749fc0cb93ecd0fd3a59414728c337632d19" # from Build Image
     networks: [peers]
     keys: [transfer]
     attestation: true
@@ -30,7 +30,7 @@ containers:
     ports: ["8080:8080"]
     env:
       - PEER_PIN: "zeke-02/key-transfer-probe"
-      - PROBE_LABEL: "gen2" # change for the unapproved release, so its measurement differs
+      - PROBE_LABEL: "gen3" # change for the unapproved release, so its measurement differs
 
 shim:
   upstream-port: 8080
