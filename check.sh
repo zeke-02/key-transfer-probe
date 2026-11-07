@@ -39,7 +39,8 @@ case "${1:-}" in
   transfer)
     a=$2 b=$3
     status=$(post "$a" /generate)
-    [ "$status" = 200 ] || fail "generate answered $status: $(body)"
+    # 409 means a already holds a key from an earlier run.
+    [ "$status" = 200 ] || [ "$status" = 409 ] || fail "generate answered $status: $(body)"
     status=$(post "$b" /pull "{\"peer\":\"$a\"}")
     [ "$status" = 200 ] || fail "pull answered $status: $(body)"
     body | jq .

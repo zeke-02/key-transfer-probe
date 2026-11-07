@@ -67,6 +67,11 @@ Check first that V3 attestation is enabled for the Tinfoil org.
    tinfoil container list
    ```
 
+   A release that has never been latest has no witness, so its enclave answers 503
+   (`attestation_unavailable`) to fresh attestation. If that happens, run
+   `gh release edit v0.0.1 -R zeke-02/key-transfer-probe --latest`. It recovered in about 45
+   seconds, and `v0.0.2` kept working.
+
 8. Run the checks, using the instance domains. They need `curl`, `jq`, and `openssl`:
 
    ```bash
@@ -99,6 +104,13 @@ depends on that.
 
 If `transfer` fails, the error names the stage. `begin` or a network error points at egress or
 the shim, and a failure at `verify` shows what the document lacks.
+
+## Result
+
+All checks passed on 2026-11-07, on CVM 0.14.17 on `iridium-1`. A transfer took 132ms with a
+78 KB document. Each enclave reported code collateral, so `last_peer` had no config approval
+time. The copy had the same measurement as `v0.0.1`, and was refused on the signing
+certificate's repo.
 
 ## What this doesn't cover
 

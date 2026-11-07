@@ -92,8 +92,8 @@ func (a *socketAttester) Attest(ctx context.Context, nonce []byte) ([]byte, erro
 	return nil, last
 }
 
-// tinfoilVerifier pins the peer to one repo and release. CodeTag can't do this:
-// on V3 config collateral it names the runtime, not the release.
+// tinfoilVerifier pins the peer to one repo and release. CodeTag can't do this
+// everywhere: on V3 config collateral it names the runtime, not the release.
 type tinfoilVerifier struct {
 	verifier *verify.Verifier
 	pin      string

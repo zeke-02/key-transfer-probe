@@ -29,8 +29,8 @@ containers:
       start_period: 1m
     ports: ["8080:8080"]
     env:
-      - PEER_PIN: "zeke-02/key-transfer-probe@v0.0.1"
-      - PROBE_LABEL: "unapproved" # change for the unapproved release, so its measurement differs
+      - PEER_PIN: "zeke-02/key-transfer-probe"
+      - PROBE_LABEL: "gen1" # change for the unapproved release, so its measurement differs
 
 shim:
   upstream-port: 8080
