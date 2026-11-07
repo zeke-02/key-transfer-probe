@@ -16,7 +16,7 @@ networks:
 
 containers:
   - name: probe
-    image: "ghcr.io/zeke-02/key-transfer-probe@sha256:PLACEHOLDER_DIGEST" # from Build Image
+    image: "ghcr.io/zeke-02/key-transfer-probe@sha256:803046f620d0e63deb68b65d1b153bafea987d9b5bda079ef9ef993195cfa8b5" # from Build Image
     networks: [peers]
     keys: [transfer]
     attestation: true
