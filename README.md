@@ -30,7 +30,7 @@ which the live run can't reach. Only a live run proves the attestation parts.
 
 | Instance | Release | Role |
 |---|---|---|
-| `kt-a`, `kt-b` | `zeke-02/key-transfer-probe@v0.0.1` | The pair |
+| `kt-a`, `kt-b` | `zeke-02/key-transfer-probe@v0.0.1`, later `v0.0.3` to `v0.0.5` | The pair |
 | `kt-unapproved` | `zeke-02/key-transfer-probe@v0.0.2` | Correct repo, wrong release |
 | `kt-copy` | `zeke-02/key-transfer-probe-copy@v0.0.1` | Same code and tag, wrong repo |
 
@@ -127,10 +127,25 @@ The repo pin also let `kt-a` seal the key to `kt-unapproved` on `v0.0.2`. That e
 refused it because its own pin was stricter. A real vault should also require a tag at or above
 its own.
 
+## Minimum tag
+
+`v0.0.5` adds that check. A holder reads its own tag from its own attestation, then refuses to
+seal the key to any peer with a lower tag, or with no valid version tag. If it can't read its own
+tag, it refuses everyone. Only the holder checks, because an upgrade pulls from an older release.
+
+On 2026-11-07, both enclaves upgraded from `v0.0.4` to `v0.0.5` with hold and promote. The `kt-a`
+candidate pulled from `v0.0.4`, and the `kt-b` candidate pulled from the new `kt-a`. Then:
+
+```bash
+./check.sh refuse $A $UNAPPROVED   # refused at minimum tag: v0.0.2 is older than v0.0.5
+./check.sh refuse $A $COPY         # still refused at verify, on the signing repo
+```
+
+`release_floor` in `/status` shows the tag in force, once the first transfer has read it.
+
 ## What this doesn't cover
 
 - Handing over after witnesses have aged.
 - Losing both enclaves, or recovery shares.
-- A minimum-tag check against old releases.
 - Whether a second instance of an approved release is safe. The pin names a release, not an
   instance.
